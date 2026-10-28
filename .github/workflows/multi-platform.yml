@@ -1,222 +1,53 @@
-#include <Geode/Geode.hpp>
-#include <Geode/modify/PlayLayer.hpp>
-#include <algorithm>
-#include <string>
+name: Build Practice+
 
-using namespace geode::prelude;
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "**"
 
-class $modify(PracticePlusPlayLayer, PlayLayer) {
-    struct Fields {
-        CCLabelBMFont* statsLabel = nullptr;
-        int deaths = 0;
-        int bestProgress = 0;
-        int nextAutoCheckpoint = 10;
-        bool practiceRun = false;
-    };
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
+          - name: iOS
+            os: macos-latest
+            target: iOS
+          - name: Android32
+            os: ubuntu-latest
+            target: Android32
+          - name: Android64
+            os: ubuntu-latest
+            target: Android64
 
-    bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
-        if (!PlayLayer::init(level, useReplay, dontCreateObjects))
-            return false;
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
 
-        m_fields->practiceRun = m_isPracticeMode;
-        m_fields->deaths = 0;
-        m_fields->bestProgress = 0;
+    steps:
+      - uses: actions/checkout@v4
 
-        int interval =
-            Mod::get()->getSettingValue<int>("checkpoint-interval");
-        m_fields->nextAutoCheckpoint = std::max(1, interval);
+      - name: Build the mod
+        uses: geode-sdk/build-geode-mod@main
+        with:
+          bindings: geode-sdk/bindings
+          combine: true
+          target: ${{ matrix.config.target }}
 
-        if (!m_fields->practiceRun)
-            return true;
+  package:
+    name: Package builds
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: geode-sdk/build-geode-mod/combine@main
+        id: build
 
-        auto winSize = CCDirector::sharedDirector()->getWinSize();
-
-        // Practice+ controls
-        auto menu = CCMenu::create();
-        if (menu) {
-            menu->setID("practice-plus-controls");
-            menu->setPosition(CCPointZero);
-
-            float buttonX = winSize.width - 45.f;
-            float buttonY = winSize.height - 45.f;
-
-            auto addButton = [&](const char* text, float x, float y,
-                                 SEL_MenuHandler callback) {
-                auto label = CCLabelBMFont::create(text, "bigFont.fnt");
-                if (!label)
-                    return;
-
-                label->setScale(0.35f);
-
-                auto button =
-                    CCMenuItemLabel::create(label, this, callback);
-                if (!button)
-                    return;
-
-                button->setPosition({x, y});
-                menu->addChild(button);
-            };
-
-            if (Mod::get()->getSettingValue<bool>(
-                    "show-checkpoint-buttons")) {
-                addButton(
-                    "CP-", buttonX - 75.f, buttonY,
-                    menu_selector(PracticePlusPlayLayer::onPreviousCP)
-                );
-
-                addButton(
-                    "SAVE", buttonX, buttonY,
-                    menu_selector(PracticePlusPlayLayer::onSaveCP)
-                );
-
-                addButton(
-                    "CP+", buttonX + 75.f, buttonY,
-                    menu_selector(PracticePlusPlayLayer::onNextCP)
-                );
-            }
-
-            if (Mod::get()->getSettingValue<bool>("quick-restart")) {
-                addButton(
-                    "RESTART", buttonX, buttonY - 35.f,
-                    menu_selector(PracticePlusPlayLayer::onQuickRestart)
-                );
-            }
-
-            this->addChild(menu, 1000);
-        }
-
-        // Practice statistics
-        if (Mod::get()->getSettingValue<bool>("show-statistics")) {
-            m_fields->statsLabel = CCLabelBMFont::create(
-                "Deaths: 0 | Best: 0%", "bigFont.fnt"
-            );
-
-            if (m_fields->statsLabel) {
-                m_fields->statsLabel->setScale(0.35f);
-                m_fields->statsLabel->setAnchorPoint({0.f, 1.f});
-                m_fields->statsLabel->setPosition(
-                    {8.f, winSize.height - 8.f}
-                );
-                this->addChild(m_fields->statsLabel, 1000);
-            }
-        }
-
-        return true;
-    }
-
-    // Save a checkpoint at the current position.
-    void onSaveCP(CCObject*) {
-        if (!m_isPracticeMode)
-            return;
-
-        createCheckpoint();
-    }
-
-    void onPreviousCP(CCObject*) {
-        switchCheckpoint(-1);
-    }
-
-    void onNextCP(CCObject*) {
-        switchCheckpoint(1);
-    }
-
-    // Move between existing checkpoints.
-    void switchCheckpoint(int direction) {
-        if (!m_isPracticeMode || !m_checkpointArray ||
-            m_checkpointArray->count() == 0) {
-            return;
-        }
-
-        int count = static_cast<int>(m_checkpointArray->count());
-        int currentIndex = -1;
-
-        for (int i = 0; i < count; i++) {
-            auto checkpoint = static_cast<CheckpointObject*>(
-                m_checkpointArray->objectAtIndex(i)
-            );
-
-            if (checkpoint == m_currentCheckpoint) {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        int targetIndex;
-
-        if (currentIndex == -1) {
-            targetIndex = direction > 0 ? 0 : count - 1;
-        } else {
-            targetIndex = currentIndex + direction;
-        }
-
-        // Do not wrap around past the first or last checkpoint.
-        if (targetIndex < 0 || targetIndex >= count)
-            return;
-
-        auto checkpoint = static_cast<CheckpointObject*>(
-            m_checkpointArray->objectAtIndex(targetIndex)
-        );
-
-        if (checkpoint)
-            loadFromCheckpoint(checkpoint);
-    }
-
-    // Restart the practice run.
-    void onQuickRestart(CCObject*) {
-        if (!m_isPracticeMode)
-            return;
-
-        resetLevel();
-    }
-
-    // Count deaths.
-    void destroyPlayer(PlayerObject* player, GameObject* object) {
-        if (m_fields->practiceRun)
-            m_fields->deaths++;
-
-        PlayLayer::destroyPlayer(player, object);
-        updatePracticeStats();
-    }
-
-    // Track progress and create automatic checkpoints.
-    void postUpdate(float dt) {
-        PlayLayer::postUpdate(dt);
-
-        if (!m_fields->practiceRun || !m_isPracticeMode)
-            return;
-
-        int progress = getCurrentPercentInt();
-
-        if (progress > m_fields->bestProgress)
-            m_fields->bestProgress = progress;
-
-        if (Mod::get()->getSettingValue<bool>("automatic-checkpoints")) {
-            int interval = Mod::get()->getSettingValue<int>(
-                "checkpoint-interval"
-            );
-            interval = std::max(1, interval);
-
-            if (progress >= m_fields->nextAutoCheckpoint &&
-                progress < 100) {
-                createCheckpoint();
-
-                // Schedule the next checkpoint threshold.
-                m_fields->nextAutoCheckpoint =
-                    (progress / interval + 1) * interval;
-            }
-        }
-
-        updatePracticeStats();
-    }
-
-    void updatePracticeStats() {
-        if (!m_fields->statsLabel)
-            return;
-
-        std::string text =
-            "Deaths: " + std::to_string(m_fields->deaths) +
-            " | Best: " + std::to_string(m_fields->bestProgress) + "%";
-
-        m_fields->statsLabel->setString(text.c_str());
-    }
-};
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PracticePlus-build
+          path: ${{ steps.build.outputs.build-output }}

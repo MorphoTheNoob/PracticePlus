@@ -1,3 +1,4 @@
+
 {
   "geode": "5.3.0",
   "gd": {
@@ -10,7 +11,7 @@
   "name": "Practice+",
   "version": "v1.0.0",
   "developer": "MorphoYT",
-  "description": "Enhance Geometry Dash practice mode with checkpoint switching, automatic checkpoints, practice statistics, best progress tracking, and quick restart.",
+  "description": "Practice mode tools with checkpoint navigation, automatic checkpoints, statistics, and quick restart.",
   "repository": "https://github.com/MorphoTheNoob/PracticePlus",
   "links": {
     "source": "https://github.com/MorphoTheNoob/PracticePlus"
@@ -20,5 +21,47 @@
     "Enhancement",
     "Interface",
     "Utility"
-  ]
+  ],
+  "settings": {
+    "checkpoint-controls": {
+      "type": "title",
+      "name": "Checkpoint Controls"
+    },
+    "show-checkpoint-buttons": {
+      "type": "bool",
+      "name": "Show checkpoint buttons",
+      "description": "Display previous, next, and save checkpoint controls during gameplay.",
+      "default": true
+    },
+    "automatic-checkpoints": {
+      "type": "bool",
+      "name": "Automatic checkpoints",
+      "description": "Create checkpoints as you make progress in practice mode.",
+      "default": false
+    },
+    "checkpoint-interval": {
+      "type": "int",
+      "name": "Automatic checkpoint interval",
+      "description": "Progress percentage between automatic checkpoints.",
+      "default": 10,
+      "min": 1,
+      "max": 50
+    },
+    "practice-tools": {
+      "type": "title",
+      "name": "Practice Tools"
+    },
+    "show-statistics": {
+      "type": "bool",
+      "name": "Show practice statistics",
+      "description": "Display attempts, deaths, and best progress.",
+      "default": true
+    },
+    "quick-restart": {
+      "type": "bool",
+      "name": "Enable quick restart",
+      "description": "Show a restart control during gameplay.",
+      "default": true
+    }
+  }
 }

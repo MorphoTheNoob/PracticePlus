@@ -1,0 +1,14 @@
+{
+  "geode": "4.0.0",
+  "gd": {
+    "win": "2.2074",
+    "android": "2.2074",
+    "mac": "2.2074",
+    "ios": "2.2074"
+  },
+  "id": "morpho.practice-plus",
+  "name": "Practice+",
+  "version": "v1.0.0",
+  "developer": "MorphoYT",
+  "description": "Practice mode enhancements with checkpoint navigation, practice statistics, and quick restart."
+}
